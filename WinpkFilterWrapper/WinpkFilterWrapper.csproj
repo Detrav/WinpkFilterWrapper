@@ -41,6 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="TcpFilter.cs" />
     <Compile Include="IPStructs.cs" />
     <Compile Include="Ndisapi.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
