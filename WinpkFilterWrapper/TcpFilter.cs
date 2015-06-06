@@ -31,7 +31,7 @@ namespace Detrav.WinpkFilterWrapper
         /// Фильтр на хост
         /// </summary>
         public string host { get; set; }
-        private Queue<byte[]> packets;
+        private Queue<byte[]> packets = new Queue<byte[]>();
         #endregion Переменные
 
         private TcpFilter()
