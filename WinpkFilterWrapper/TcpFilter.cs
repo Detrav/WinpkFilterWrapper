@@ -163,7 +163,8 @@ namespace Detrav.WinpkFilterWrapper
                 try
                 {
                     if (threadReadPacket != null)
-                        threadReadPacket.Join();
+                        if(threadReadPacket.IsAlive)
+                            threadReadPacket.Join();
                 }
                 finally
                 {
@@ -173,7 +174,8 @@ namespace Detrav.WinpkFilterWrapper
                 try
                 {
                     if (threadEvents != null)
-                        threadEvents.Join();
+                        if (threadEvents.IsAlive)
+                            threadEvents.Join();
                 }
                 catch { }
             }
