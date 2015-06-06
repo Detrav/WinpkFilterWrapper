@@ -18,14 +18,20 @@ namespace Detrav.WinpkFilterWrapper
         private IntPtr bufferPtr;
         private ETH_REQUEST request;
         private static TcpFilter instance;
-        private Thread thread;
+        private Thread threadReadPacket;
+        private Thread threadEvents;
         private bool needToStop;
         private bool ready;
+        /// <summary>
+        /// Событие происходит при получении нового пакета
+        /// </summary>
+        public event OnFilterPacketArrival onFilterPacketArrival;
         //private string host;
         /// <summary>
         /// Фильтр на хост
         /// </summary>
         public string host { get; set; }
+        private Queue<byte[]> packets;
         #endregion Переменные
 
         private TcpFilter()
@@ -38,7 +44,8 @@ namespace Detrav.WinpkFilterWrapper
             {
                 ready = Ndisapi.GetTcpipBoundAdaptersInfo(driverPtr, ref adapters);
             }
-            thread = new Thread(doEvents);
+            threadReadPacket = new Thread(doReadPacket);
+            threadEvents = new Thread(doEvents);
         }
 
 
@@ -131,7 +138,8 @@ namespace Detrav.WinpkFilterWrapper
                     hAdapterHandle = adapters.m_nAdapterHandle[deviceNumber],
                     EthPacket = { Buffer = bufferPtr }
                 };
-                thread.Start();
+                threadReadPacket.Start();
+                threadEvents.Start();
                 ready = false;
                 return true;
             }
@@ -151,25 +159,29 @@ namespace Detrav.WinpkFilterWrapper
                 return;
             if (disposing)
             {
+                needToStop = true;
                 try
                 {
-                    if (thread != null)
-                    {
-                        needToStop = true;
-                        thread.Join();
-                    }
+                    if (threadReadPacket != null)
+                        threadReadPacket.Join();
                 }
                 finally
                 {
                     Marshal.FreeHGlobal(bufferPtr);
                     Ndisapi.CloseFilterDriver(driverPtr);
                 }
+                try
+                {
+                    if (threadEvents != null)
+                        threadEvents.Join();
+                }
+                catch { }
             }
             disposed = true;
         }
         #endregion Dispose
 
-        private void doEvents(object obj)
+        private void doReadPacket()
         {
             while (true)
             {
@@ -177,11 +189,39 @@ namespace Detrav.WinpkFilterWrapper
                 if (Ndisapi.ReadPacket(driverPtr, ref request))
                 {
                     buffer = (INTERMEDIATE_BUFFER)Marshal.PtrToStructure(bufferPtr, typeof(INTERMEDIATE_BUFFER));
+                    lock(packets)
+                    {
+                        packets.Enqueue(buffer.m_IBuffer.Clone() as byte[]);
+                    }
                     //Тут нужен мульти лок
                     //captureDevice_OnPacketArrival(buffer);
                 }
                 else System.Threading.Thread.Sleep(16);
             }
         }
+
+        private void doEvents()
+        {
+            byte[] data;
+            while (true)
+            {
+                if (needToStop) return;
+                data = null;
+                lock(packets)
+                {
+                    if (packets.Count > 0)
+                        data = packets.Dequeue();
+                }
+                if(data == null)
+                    System.Threading.Thread.Sleep(16);
+                else
+                {
+                    if (onFilterPacketArrival != null)
+                        onFilterPacketArrival(this, new FilterPacketArrivalEventArgs(data));
+                }
+            }
+        }
+
+        
     }
 }
